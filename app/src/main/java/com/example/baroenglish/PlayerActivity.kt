@@ -11,6 +11,7 @@ import android.view.MotionEvent
 import android.view.View
 import android.view.ViewGroup
 import android.webkit.WebChromeClient
+import android.webkit.JavascriptInterface
 import android.webkit.WebResourceRequest
 import android.webkit.WebView
 import android.webkit.WebViewClient
@@ -26,6 +27,7 @@ class PlayerActivity : AppCompatActivity() {
     private lateinit var titleView: TextView
     private lateinit var viewPager: ViewPager2
     private lateinit var pagerAdapter: ShortsPagerAdapter
+    private var lastAutoAdvancedPosition = RecyclerView.NO_POSITION
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -44,6 +46,7 @@ class PlayerActivity : AppCompatActivity() {
         updateTitle(initialIndex)
         viewPager.registerOnPageChangeCallback(object : ViewPager2.OnPageChangeCallback() {
             override fun onPageSelected(position: Int) {
+                lastAutoAdvancedPosition = RecyclerView.NO_POSITION
                 updateTitle(position)
                 pagerAdapter.play(position)
             }
@@ -80,6 +83,56 @@ class PlayerActivity : AppCompatActivity() {
             })(0);
         """.trimIndent()
         webView.evaluateJavascript(script, null)
+    }
+
+    private fun installAutoNextListener(webView: WebView) {
+        webView.evaluateJavascript(
+            """
+                (function retryInstallAutoNext(attempt) {
+                  const video = document.querySelector('video');
+                  if (video && !video.__baroEnglishAutoNextInstalled) {
+                    video.__baroEnglishAutoNextInstalled = true;
+                    video.__baroEnglishEndedSent = false;
+                    const notifyEnded = function() {
+                      if (video.__baroEnglishEndedSent) {
+                        return;
+                      }
+                      video.__baroEnglishEndedSent = true;
+                      if (window.BaroEnglishBridge && window.BaroEnglishBridge.onVideoEnded) {
+                        window.BaroEnglishBridge.onVideoEnded();
+                      }
+                    };
+                    video.addEventListener('ended', notifyEnded);
+                    video.addEventListener('timeupdate', function() {
+                      if (!video.duration || !isFinite(video.duration)) {
+                        return;
+                      }
+                      if (video.currentTime >= Math.max(video.duration - 0.35, 0)) {
+                        notifyEnded();
+                      } else if (video.currentTime < Math.max(video.duration - 1.2, 0)) {
+                        video.__baroEnglishEndedSent = false;
+                      }
+                    });
+                  }
+                  if (attempt < 12) {
+                    setTimeout(function() { retryInstallAutoNext(attempt + 1); }, 500);
+                  }
+                })(0);
+            """.trimIndent(),
+            null
+        )
+    }
+
+    private fun moveToNextFrom(position: Int) {
+        if (position != viewPager.currentItem || position == lastAutoAdvancedPosition) {
+            return
+        }
+        val nextPosition = position + 1
+        if (nextPosition > lessons.lastIndex) {
+            return
+        }
+        lastAutoAdvancedPosition = position
+        viewPager.setCurrentItem(nextPosition, true)
     }
 
     private fun openExternal(uri: Uri) {
@@ -137,11 +190,13 @@ class PlayerActivity : AppCompatActivity() {
                       video.defaultMuted = false;
                       video.volume = 1.0;
                       video.currentTime = 0;
+                      video.__baroEnglishEndedSent = false;
                       video.play && video.play().catch(function() {});
                     })();
                 """.trimIndent(),
                 null
             )
+            installAutoNextListener(webView)
             unmuteVideo(webView)
         }
 
@@ -166,6 +221,7 @@ class PlayerActivity : AppCompatActivity() {
 
             init {
                 configureWebView(webView)
+                webView.addJavascriptInterface(VideoEndedBridge(this), "BaroEnglishBridge")
                 configureTouchBlocker(touchBlocker)
             }
 
@@ -182,6 +238,25 @@ class PlayerActivity : AppCompatActivity() {
             fun stop() {
                 webView.stopLoading()
                 webView.loadUrl("about:blank")
+            }
+
+            fun onVideoEnded() {
+                val position = boundPosition
+                if (position == RecyclerView.NO_POSITION) {
+                    return
+                }
+                moveToNextFrom(position)
+            }
+        }
+    }
+
+    private inner class VideoEndedBridge(
+        private val holder: ShortsPagerAdapter.ShortsViewHolder
+    ) {
+        @JavascriptInterface
+        fun onVideoEnded() {
+            runOnUiThread {
+                holder.onVideoEnded()
             }
         }
     }
@@ -220,6 +295,7 @@ class PlayerActivity : AppCompatActivity() {
                 pagerAdapter.pauseExcept(position)
                 if (pagerAdapter.isCurrentWebView(position, view)) {
                     requestAudioFocus()
+                    installAutoNextListener(view)
                     unmuteVideo(view)
                 }
             }
