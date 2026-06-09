@@ -1,20 +1,47 @@
 <?xml version="1.0" encoding="utf-8"?>
-<FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
+<androidx.constraintlayout.widget.ConstraintLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
     android:background="@color/baro_player_background">
 
-    <WebView
-        android:id="@+id/shortsWebView"
-        android:layout_width="match_parent"
-        android:layout_height="match_parent" />
+    <View
+        android:id="@+id/leftRail"
+        android:layout_width="4dp"
+        android:layout_height="96dp"
+        android:layout_marginEnd="18dp"
+        android:background="@drawable/player_video_side_rail"
+        app:layout_constraintBottom_toBottomOf="@id/videoFrame"
+        app:layout_constraintEnd_toStartOf="@id/videoFrame"
+        app:layout_constraintTop_toTopOf="@id/videoFrame" />
+
+    <FrameLayout
+        android:id="@+id/videoFrame"
+        android:layout_width="0dp"
+        android:layout_height="0dp"
+        android:background="@drawable/player_video_frame"
+        android:padding="4dp"
+        app:layout_constraintBottom_toBottomOf="parent"
+        app:layout_constraintHeight_percent="0.68"
+        app:layout_constraintLeft_toLeftOf="parent"
+        app:layout_constraintRight_toRightOf="parent"
+        app:layout_constraintTop_toTopOf="parent"
+        app:layout_constraintWidth_percent="0.68">
+
+        <WebView
+            android:id="@+id/shortsWebView"
+            android:layout_width="match_parent"
+            android:layout_height="match_parent" />
+    </FrameLayout>
 
     <View
-        android:id="@+id/touchBlocker"
-        android:layout_width="match_parent"
-        android:layout_height="match_parent"
-        android:background="@android:color/transparent"
-        android:clickable="true"
-        android:focusable="false" />
+        android:id="@+id/rightRail"
+        android:layout_width="4dp"
+        android:layout_height="96dp"
+        android:layout_marginStart="18dp"
+        android:background="@drawable/player_video_side_rail"
+        app:layout_constraintBottom_toBottomOf="@id/videoFrame"
+        app:layout_constraintStart_toEndOf="@id/videoFrame"
+        app:layout_constraintTop_toTopOf="@id/videoFrame" />
 
-</FrameLayout>
+</androidx.constraintlayout.widget.ConstraintLayout>
