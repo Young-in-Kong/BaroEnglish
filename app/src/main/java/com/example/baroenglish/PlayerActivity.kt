@@ -19,7 +19,6 @@ import android.widget.Toast
 import androidx.appcompat.app.AppCompatActivity
 import androidx.recyclerview.widget.RecyclerView
 import androidx.viewpager2.widget.ViewPager2
-import org.json.JSONObject
 
 class PlayerActivity : AppCompatActivity() {
     private val lessons = LessonRepository.lessons
@@ -66,62 +65,6 @@ class PlayerActivity : AppCompatActivity() {
         )
     }
 
-    private fun unmuteVideo(webView: WebView) {
-        val script = """
-            (function retryUnmute(attempt) {
-              const video = document.querySelector('video');
-              if (video) {
-                video.muted = false;
-                video.defaultMuted = false;
-                video.volume = 1.0;
-                video.play && video.play().catch(function() {});
-              }
-              if (attempt < 12) {
-                setTimeout(function() { retryUnmute(attempt + 1); }, 500);
-              }
-            })(0);
-        """.trimIndent()
-        webView.evaluateJavascript(script, null)
-    }
-
-    private fun installAutoNextListener(webView: WebView) {
-        webView.evaluateJavascript(
-            """
-                (function retryInstallAutoNext(attempt) {
-                  const video = document.querySelector('video');
-                  if (video && !video.__baroEnglishAutoNextInstalled) {
-                    video.__baroEnglishAutoNextInstalled = true;
-                    video.__baroEnglishEndedSent = false;
-                    const notifyEnded = function() {
-                      if (video.__baroEnglishEndedSent) {
-                        return;
-                      }
-                      video.__baroEnglishEndedSent = true;
-                      if (window.BaroEnglishBridge && window.BaroEnglishBridge.onVideoEnded) {
-                        window.BaroEnglishBridge.onVideoEnded();
-                      }
-                    };
-                    video.addEventListener('ended', notifyEnded);
-                    video.addEventListener('timeupdate', function() {
-                      if (!video.duration || !isFinite(video.duration)) {
-                        return;
-                      }
-                      if (video.currentTime >= Math.max(video.duration - 0.35, 0)) {
-                        notifyEnded();
-                      } else if (video.currentTime < Math.max(video.duration - 1.2, 0)) {
-                        video.__baroEnglishEndedSent = false;
-                      }
-                    });
-                  }
-                  if (attempt < 12) {
-                    setTimeout(function() { retryInstallAutoNext(attempt + 1); }, 500);
-                  }
-                })(0);
-            """.trimIndent(),
-            null
-        )
-    }
-
     private fun moveToNextFrom(position: Int) {
         if (position != viewPager.currentItem || position == lastAutoAdvancedPosition) {
             return
@@ -162,6 +105,8 @@ class PlayerActivity : AppCompatActivity() {
 
     companion object {
         const val EXTRA_INDEX = "extra_index"
+        private const val PLAYER_ORIGIN = "https://com.example.baroenglish"
+        private const val PLAYER_BASE_URL = "$PLAYER_ORIGIN/"
     }
 
     private inner class ShortsPagerAdapter(
@@ -175,7 +120,7 @@ class PlayerActivity : AppCompatActivity() {
         }
 
         override fun onBindViewHolder(holder: ShortsViewHolder, position: Int) {
-            holder.bind(lessons[position])
+            holder.bind(lessons[position], position)
         }
 
         override fun getItemCount(): Int = lessons.size
@@ -187,7 +132,6 @@ class PlayerActivity : AppCompatActivity() {
         }
 
         fun play(position: Int) {
-            val lesson = lessons.getOrNull(position) ?: return
             pauseExcept(position)
             val webView = activeWebViews[position]
             if (webView == null) {
@@ -197,23 +141,13 @@ class PlayerActivity : AppCompatActivity() {
             webView.evaluateJavascript(
                 """
                     (function() {
-                      const video = document.querySelector('video');
-                      if (!video) {
-                        location.href = ${JSONObject.quote(lesson.youtubeShortsUrl)};
-                        return;
+                      if (window.baroPlayFromStart) {
+                        window.baroPlayFromStart();
                       }
-                      video.muted = false;
-                      video.defaultMuted = false;
-                      video.volume = 1.0;
-                      video.currentTime = 0;
-                      video.__baroEnglishEndedSent = false;
-                      video.play && video.play().catch(function() {});
                     })();
                 """.trimIndent(),
                 null
             )
-            installAutoNextListener(webView)
-            unmuteVideo(webView)
         }
 
         fun pauseExcept(position: Int) {
@@ -234,7 +168,7 @@ class PlayerActivity : AppCompatActivity() {
 
         inner class ShortsViewHolder(itemView: View) : RecyclerView.ViewHolder(itemView) {
             private val webView: WebView = itemView.findViewById(R.id.shortsWebView)
-            private var currentUrl: String = ""
+            private var currentVideoId: String = ""
             var boundPosition: Int = RecyclerView.NO_POSITION
                 private set
 
@@ -243,14 +177,21 @@ class PlayerActivity : AppCompatActivity() {
                 webView.addJavascriptInterface(VideoEndedBridge(this), "BaroEnglishBridge")
             }
 
-            fun bind(lesson: Lesson) {
-                boundPosition = bindingAdapterPosition
+            fun bind(lesson: Lesson, position: Int) {
+                boundPosition = position
                 activeWebViews[boundPosition] = webView
-                if (currentUrl == lesson.youtubeShortsUrl) {
+                val videoId = extractYoutubeVideoId(lesson.youtubeShortsUrl)
+                if (currentVideoId == videoId) {
                     return
                 }
-                currentUrl = lesson.youtubeShortsUrl
-                webView.loadUrl(currentUrl)
+                currentVideoId = videoId
+                webView.loadDataWithBaseURL(
+                    PLAYER_BASE_URL,
+                    buildPlayerHtml(videoId),
+                    "text/html",
+                    "UTF-8",
+                    null
+                )
             }
 
             fun stop() {
@@ -265,6 +206,14 @@ class PlayerActivity : AppCompatActivity() {
                 }
                 moveToNextFrom(position)
             }
+
+            fun onPlayerReady() {
+                val position = boundPosition
+                if (position == viewPager.currentItem) {
+                    requestAudioFocus()
+                    pagerAdapter.play(position)
+                }
+            }
         }
     }
 
@@ -275,6 +224,13 @@ class PlayerActivity : AppCompatActivity() {
         fun onVideoEnded() {
             runOnUiThread {
                 holder.onVideoEnded()
+            }
+        }
+
+        @JavascriptInterface
+        fun onPlayerReady() {
+            runOnUiThread {
+                holder.onPlayerReady()
             }
         }
     }
@@ -291,6 +247,10 @@ class PlayerActivity : AppCompatActivity() {
             override fun shouldOverrideUrlLoading(view: WebView, request: WebResourceRequest): Boolean {
                 val uri = request.url
                 if (uri.scheme == "http" || uri.scheme == "https") {
+                    if (request.isForMainFrame && uri.host != Uri.parse(PLAYER_BASE_URL).host) {
+                        openExternal(uri)
+                        return true
+                    }
                     return false
                 }
                 openExternal(uri)
@@ -301,11 +261,6 @@ class PlayerActivity : AppCompatActivity() {
                 super.onPageFinished(view, url)
                 val position = viewPager.currentItem
                 pagerAdapter.pauseExcept(position)
-                if (pagerAdapter.isCurrentWebView(position, view)) {
-                    requestAudioFocus()
-                    installAutoNextListener(view)
-                    unmuteVideo(view)
-                }
             }
         }
     }
@@ -314,14 +269,106 @@ class PlayerActivity : AppCompatActivity() {
         webView.evaluateJavascript(
             """
                 (function() {
-                  const video = document.querySelector('video');
-                  if (video) {
-                    video.pause && video.pause();
-                    video.muted = true;
+                  if (window.baroPause) {
+                    window.baroPause();
                   }
                 })();
             """.trimIndent(),
             null
         )
+    }
+
+    private fun extractYoutubeVideoId(url: String): String {
+        val uri = Uri.parse(url)
+        val shortsIndex = uri.pathSegments.indexOf("shorts")
+        if (shortsIndex >= 0 && shortsIndex + 1 < uri.pathSegments.size) {
+            return uri.pathSegments[shortsIndex + 1]
+        }
+        return uri.getQueryParameter("v").orEmpty()
+    }
+
+    private fun buildPlayerHtml(videoId: String): String {
+        return """
+            <!doctype html>
+            <html>
+            <head>
+              <meta name="viewport" content="width=device-width, initial-scale=1.0">
+              <style>
+                html, body, #player {
+                  width: 100%;
+                  height: 100%;
+                  margin: 0;
+                  padding: 0;
+                  overflow: hidden;
+                  background: #000;
+                }
+              </style>
+            </head>
+            <body>
+              <div id="player"></div>
+              <script src="https://www.youtube.com/iframe_api"></script>
+              <script>
+                var player;
+                var isReady = false;
+
+                function onYouTubeIframeAPIReady() {
+                  player = new YT.Player('player', {
+                    width: '100%',
+                    height: '100%',
+                    videoId: '$videoId',
+                    playerVars: {
+                      autoplay: 1,
+                      controls: 1,
+                      enablejsapi: 1,
+                      fs: 1,
+                      playsinline: 1,
+                      rel: 0,
+                      origin: '$PLAYER_ORIGIN'
+                    },
+                    events: {
+                      onReady: onPlayerReady,
+                      onStateChange: onPlayerStateChange
+                    }
+                  });
+                }
+
+                function onPlayerReady(event) {
+                  isReady = true;
+                  event.target.unMute();
+                  event.target.setVolume(100);
+                  event.target.playVideo();
+                  if (window.BaroEnglishBridge && window.BaroEnglishBridge.onPlayerReady) {
+                    window.BaroEnglishBridge.onPlayerReady();
+                  }
+                }
+
+                function onPlayerStateChange(event) {
+                  if (event.data === YT.PlayerState.ENDED &&
+                      window.BaroEnglishBridge &&
+                      window.BaroEnglishBridge.onVideoEnded) {
+                    window.BaroEnglishBridge.onVideoEnded();
+                  }
+                }
+
+                window.baroPlayFromStart = function() {
+                  if (!isReady || !player || !player.seekTo || !player.playVideo) {
+                    return;
+                  }
+                  player.unMute();
+                  player.setVolume(100);
+                  player.seekTo(0, true);
+                  player.playVideo();
+                };
+
+                window.baroPause = function() {
+                  if (!isReady || !player || !player.pauseVideo) {
+                    return;
+                  }
+                  player.pauseVideo();
+                };
+              </script>
+            </body>
+            </html>
+        """.trimIndent()
     }
 }
