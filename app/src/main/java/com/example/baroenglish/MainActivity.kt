@@ -7,6 +7,7 @@ import android.view.View
 import android.view.ViewGroup
 import android.widget.TextView
 import androidx.appcompat.app.AppCompatActivity
+import androidx.recyclerview.widget.ItemTouchHelper
 import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
 
@@ -17,20 +18,23 @@ class MainActivity : AppCompatActivity() {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_main)
 
+        val lessonAdapter = LessonAdapter(lessons) { position ->
+            startActivity(
+                Intent(this@MainActivity, PlayerActivity::class.java)
+                    .putExtra(PlayerActivity.EXTRA_INDEX, position)
+            )
+        }
+
         findViewById<RecyclerView>(R.id.lessonRecyclerView).apply {
             layoutManager = LinearLayoutManager(this@MainActivity)
-            adapter = LessonAdapter(lessons) { position ->
-                startActivity(
-                    Intent(this@MainActivity, PlayerActivity::class.java)
-                        .putExtra(PlayerActivity.EXTRA_INDEX, position)
-                )
-            }
+            adapter = lessonAdapter
+            ItemTouchHelper(LessonMoveCallback(lessonAdapter)).attachToRecyclerView(this)
         }
     }
 }
 
 private class LessonAdapter(
-    private val lessons: List<Lesson>,
+    private val lessons: MutableList<Lesson>,
     private val onLessonClick: (Int) -> Unit
 ) : RecyclerView.Adapter<LessonAdapter.LessonViewHolder>() {
 
@@ -41,11 +45,23 @@ private class LessonAdapter(
 
     override fun onBindViewHolder(holder: LessonViewHolder, position: Int) {
         holder.bind(lessons[position]) {
-            onLessonClick(position)
+            val currentPosition = holder.bindingAdapterPosition
+            if (currentPosition != RecyclerView.NO_POSITION) {
+                onLessonClick(currentPosition)
+            }
         }
     }
 
     override fun getItemCount(): Int = lessons.size
+
+    fun moveItem(fromPosition: Int, toPosition: Int): Boolean {
+        if (fromPosition !in lessons.indices || toPosition !in lessons.indices) {
+            return false
+        }
+        LessonRepository.moveLesson(fromPosition, toPosition)
+        notifyItemMoved(fromPosition, toPosition)
+        return true
+    }
 
     class LessonViewHolder(itemView: View) : RecyclerView.ViewHolder(itemView) {
         private val titleView: TextView = itemView.findViewById(R.id.lessonTitle)
@@ -55,4 +71,23 @@ private class LessonAdapter(
             itemView.setOnClickListener { onLessonClick() }
         }
     }
+}
+
+private class LessonMoveCallback(
+    private val adapter: LessonAdapter
+) : ItemTouchHelper.SimpleCallback(ItemTouchHelper.UP or ItemTouchHelper.DOWN, 0) {
+
+    override fun isLongPressDragEnabled(): Boolean = true
+
+    override fun isItemViewSwipeEnabled(): Boolean = false
+
+    override fun onMove(
+        recyclerView: RecyclerView,
+        viewHolder: RecyclerView.ViewHolder,
+        target: RecyclerView.ViewHolder
+    ): Boolean {
+        return adapter.moveItem(viewHolder.bindingAdapterPosition, target.bindingAdapterPosition)
+    }
+
+    override fun onSwiped(viewHolder: RecyclerView.ViewHolder, direction: Int) = Unit
 }
