@@ -127,12 +127,26 @@ class PlayerActivity : AppCompatActivity() {
         if (position != viewPager.currentItem || position == lastAutoAdvancedPosition) {
             return
         }
-        val nextPosition = position + 1
-        if (nextPosition > lessons.lastIndex) {
-            return
-        }
         lastAutoAdvancedPosition = position
-        viewPager.setCurrentItem(nextPosition, true)
+        viewPager.postDelayed({
+            if (lastAutoAdvancedPosition == position) {
+                lastAutoAdvancedPosition = RecyclerView.NO_POSITION
+            }
+        }, 1000L)
+
+        when (PlaybackSettings.getPlaybackMode(this)) {
+            PlaybackMode.REPEAT_ONE -> pagerAdapter.play(position)
+            PlaybackMode.REPEAT_ALL -> {
+                val nextPosition = if (position == lessons.lastIndex) 0 else position + 1
+                viewPager.setCurrentItem(nextPosition, true)
+            }
+            PlaybackMode.PLAY_ONCE -> {
+                val nextPosition = position + 1
+                if (nextPosition <= lessons.lastIndex) {
+                    viewPager.setCurrentItem(nextPosition, true)
+                }
+            }
+        }
     }
 
     private fun openExternal(uri: Uri) {

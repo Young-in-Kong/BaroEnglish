@@ -11,6 +11,9 @@
         android:supportsRtl="true"
         android:theme="@style/Theme.BaroEnglish">
         <activity
+            android:name=".SettingsActivity"
+            android:exported="false" />
+        <activity
             android:name=".PlayerActivity"
             android:configChanges="keyboardHidden|orientation|screenSize"
             android:exported="false" />

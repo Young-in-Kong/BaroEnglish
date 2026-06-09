@@ -18,6 +18,10 @@ class MainActivity : AppCompatActivity() {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_main)
 
+        findViewById<View>(R.id.settingsButton).setOnClickListener {
+            startActivity(Intent(this, SettingsActivity::class.java))
+        }
+
         val lessonAdapter = LessonAdapter(lessons) { position ->
             startActivity(
                 Intent(this@MainActivity, PlayerActivity::class.java)

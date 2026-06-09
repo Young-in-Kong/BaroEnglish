@@ -3,4 +3,9 @@
     <string name="app_name">BaroEnglish</string>
     <string name="back">‹</string>
     <string name="no_app_for_link">No app can open this link</string>
+    <string name="settings">설정</string>
+    <string name="playback_mode">재생 방식</string>
+    <string name="repeat_one">영상 하나 반복</string>
+    <string name="repeat_all">전체 반복</string>
+    <string name="play_once">1회 재생</string>
 </resources>
