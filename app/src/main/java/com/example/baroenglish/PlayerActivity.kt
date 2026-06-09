@@ -144,6 +144,9 @@ class PlayerActivity : AppCompatActivity() {
                 val nextPosition = position + 1
                 if (nextPosition <= lessons.lastIndex) {
                     viewPager.setCurrentItem(nextPosition, true)
+                } else {
+                    pagerAdapter.pause(position)
+                    finish()
                 }
             }
         }
@@ -220,6 +223,10 @@ class PlayerActivity : AppCompatActivity() {
                     pauseVideo(webView)
                 }
             }
+        }
+
+        fun pause(position: Int) {
+            activeWebViews[position]?.let(::pauseVideo)
         }
 
         fun isCurrentWebView(position: Int, webView: WebView): Boolean {
