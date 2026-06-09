@@ -7,6 +7,7 @@ import android.media.AudioManager
 import android.net.Uri
 import android.os.Bundle
 import android.view.LayoutInflater
+import android.view.MotionEvent
 import android.view.View
 import android.view.ViewGroup
 import android.webkit.WebChromeClient
@@ -158,12 +159,14 @@ class PlayerActivity : AppCompatActivity() {
 
         inner class ShortsViewHolder(itemView: View) : RecyclerView.ViewHolder(itemView) {
             private val webView: WebView = itemView.findViewById(R.id.shortsWebView)
+            private val touchBlocker: View = itemView.findViewById(R.id.touchBlocker)
             private var currentUrl: String = ""
             var boundPosition: Int = RecyclerView.NO_POSITION
                 private set
 
             init {
                 configureWebView(webView)
+                configureTouchBlocker(touchBlocker)
             }
 
             fun bind(lesson: Lesson) {
@@ -180,6 +183,16 @@ class PlayerActivity : AppCompatActivity() {
                 webView.stopLoading()
                 webView.loadUrl("about:blank")
             }
+        }
+    }
+
+    private fun configureTouchBlocker(touchBlocker: View) {
+        touchBlocker.setOnTouchListener { view, event ->
+            view.parent?.requestDisallowInterceptTouchEvent(false)
+            if (event.action == MotionEvent.ACTION_UP) {
+                view.performClick()
+            }
+            true
         }
     }
 
