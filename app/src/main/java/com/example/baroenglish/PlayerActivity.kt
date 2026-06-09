@@ -6,6 +6,7 @@ import android.content.Intent
 import android.media.AudioManager
 import android.net.Uri
 import android.os.Bundle
+import android.util.Log
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
@@ -45,6 +46,7 @@ class PlayerActivity : AppCompatActivity() {
         viewPager.registerOnPageChangeCallback(object : ViewPager2.OnPageChangeCallback() {
             override fun onPageSelected(position: Int) {
                 lastAutoAdvancedPosition = RecyclerView.NO_POSITION
+                logPlayerEvent("onPageSelected position=$position")
                 updateTitle(position)
                 pagerAdapter.play(position)
             }
@@ -67,6 +69,10 @@ class PlayerActivity : AppCompatActivity() {
 
     private fun moveToNextFrom(position: Int) {
         if (position != viewPager.currentItem || position == lastAutoAdvancedPosition) {
+            logPlayerEvent(
+                "moveToNext ignored position=$position current=${viewPager.currentItem} " +
+                    "lastAutoAdvanced=$lastAutoAdvancedPosition"
+            )
             return
         }
         lastAutoAdvancedPosition = position
@@ -77,16 +83,22 @@ class PlayerActivity : AppCompatActivity() {
         }, 1000L)
 
         when (PlaybackSettings.getPlaybackMode(this)) {
-            PlaybackMode.REPEAT_ONE -> pagerAdapter.play(position)
+            PlaybackMode.REPEAT_ONE -> {
+                logPlayerEvent("moveToNext repeatOne position=$position")
+                pagerAdapter.play(position)
+            }
             PlaybackMode.REPEAT_ALL -> {
                 val nextPosition = if (position == lessons.lastIndex) 0 else position + 1
+                logPlayerEvent("moveToNext repeatAll from=$position to=$nextPosition")
                 viewPager.setCurrentItem(nextPosition, true)
             }
             PlaybackMode.PLAY_ONCE -> {
                 val nextPosition = position + 1
                 if (nextPosition <= lessons.lastIndex) {
+                    logPlayerEvent("moveToNext playOnce from=$position to=$nextPosition")
                     viewPager.setCurrentItem(nextPosition, true)
                 } else {
+                    logPlayerEvent("moveToNext playOnce finished position=$position")
                     pagerAdapter.pause(position)
                     finish()
                 }
@@ -104,15 +116,21 @@ class PlayerActivity : AppCompatActivity() {
     }
 
     companion object {
+        private const val TAG = "BaroEnglishPlayer"
         const val EXTRA_INDEX = "extra_index"
         private const val PLAYER_ORIGIN = "https://com.example.baroenglish"
         private const val PLAYER_BASE_URL = "$PLAYER_ORIGIN/"
+    }
+
+    private fun logPlayerEvent(message: String) {
+        Log.d(TAG, message)
     }
 
     private inner class ShortsPagerAdapter(
         private val lessons: List<Lesson>
     ) : RecyclerView.Adapter<ShortsPagerAdapter.ShortsViewHolder>() {
         private val activeWebViews = mutableMapOf<Int, WebView>()
+        private var pendingPlayPosition = RecyclerView.NO_POSITION
 
         override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): ShortsViewHolder {
             val view = LayoutInflater.from(parent.context).inflate(R.layout.item_shorts_page, parent, false)
@@ -120,45 +138,116 @@ class PlayerActivity : AppCompatActivity() {
         }
 
         override fun onBindViewHolder(holder: ShortsViewHolder, position: Int) {
+            logPlayerEvent("onBindViewHolder position=$position")
             holder.bind(lessons[position], position)
         }
 
         override fun getItemCount(): Int = lessons.size
 
         override fun onViewRecycled(holder: ShortsViewHolder) {
+            logPlayerEvent("onViewRecycled position=${holder.boundPosition}")
             activeWebViews.remove(holder.boundPosition)
             holder.stop()
             super.onViewRecycled(holder)
         }
 
         fun play(position: Int) {
+            pendingPlayPosition = position
+            logPlayerEvent(
+                "play requested position=$position current=${viewPager.currentItem} " +
+                    "hasWebView=${activeWebViews.containsKey(position)} active=${activeWebViews.keys.sorted()}"
+            )
             pauseExcept(position)
             val webView = activeWebViews[position]
             if (webView == null) {
+                logPlayerEvent("play notifyItemChanged position=$position because webView=null")
                 notifyItemChanged(position)
                 return
             }
             webView.evaluateJavascript(
                 """
                     (function() {
+                      if (window.BaroEnglishBridge && window.BaroEnglishBridge.onLog) {
+                        window.BaroEnglishBridge.onLog('android play injection received');
+                      }
+                      window.baroPendingPlayFromStart = true;
                       if (window.baroPlayFromStart) {
                         window.baroPlayFromStart();
+                      } else if (window.BaroEnglishBridge && window.BaroEnglishBridge.onLog) {
+                        window.BaroEnglishBridge.onLog('baroPlayFromStart missing during injection');
                       }
                     })();
                 """.trimIndent(),
-                null
+                { result ->
+                    logPlayerEvent("play evaluateJavascript result position=$position result=$result")
+                }
             )
+            verifyPlaybackStarted(position, 1)
+        }
+
+        private fun verifyPlaybackStarted(position: Int, attempt: Int) {
+            viewPager.postDelayed({
+                if (position != viewPager.currentItem || pendingPlayPosition != position) {
+                    logPlayerEvent(
+                        "verifyPlayback skipped position=$position attempt=$attempt " +
+                            "current=${viewPager.currentItem} pending=$pendingPlayPosition"
+                    )
+                    return@postDelayed
+                }
+                val webView = activeWebViews[position]
+                if (webView == null) {
+                    logPlayerEvent("verifyPlayback missing webView position=$position attempt=$attempt")
+                    return@postDelayed
+                }
+                webView.evaluateJavascript(
+                    """
+                        (function() {
+                          if (window.baroEnsurePlaying) {
+                            return window.baroEnsurePlaying($attempt);
+                          }
+                          if (window.BaroEnglishBridge && window.BaroEnglishBridge.onLog) {
+                            window.BaroEnglishBridge.onLog('baroEnsurePlaying missing attempt=$attempt');
+                          }
+                          return 'missing';
+                        })();
+                    """.trimIndent(),
+                    { result ->
+                        logPlayerEvent(
+                            "verifyPlayback result position=$position attempt=$attempt result=$result"
+                        )
+                    }
+                )
+                if (attempt < 5) {
+                    verifyPlaybackStarted(position, attempt + 1)
+                }
+            }, attempt * 500L)
+        }
+
+        fun onPlayerReady(position: Int) {
+            if (position != viewPager.currentItem || pendingPlayPosition != position) {
+                logPlayerEvent(
+                    "onPlayerReady ignored position=$position current=${viewPager.currentItem} " +
+                        "pending=$pendingPlayPosition"
+                )
+                return
+            }
+            logPlayerEvent("onPlayerReady accepted position=$position")
+            requestAudioFocus()
+            play(position)
         }
 
         fun pauseExcept(position: Int) {
+            logPlayerEvent("pauseExcept keep=$position active=${activeWebViews.keys.sorted()}")
             activeWebViews.forEach { (webViewPosition, webView) ->
                 if (webViewPosition != position) {
+                    logPlayerEvent("pauseExcept pausing position=$webViewPosition")
                     pauseVideo(webView)
                 }
             }
         }
 
         fun pause(position: Int) {
+            logPlayerEvent("pause position=$position hasWebView=${activeWebViews.containsKey(position)}")
             activeWebViews[position]?.let(::pauseVideo)
         }
 
@@ -169,6 +258,7 @@ class PlayerActivity : AppCompatActivity() {
         inner class ShortsViewHolder(itemView: View) : RecyclerView.ViewHolder(itemView) {
             private val webView: WebView = itemView.findViewById(R.id.shortsWebView)
             private var currentVideoId: String = ""
+            private var isPlayerReady = false
             var boundPosition: Int = RecyclerView.NO_POSITION
                 private set
 
@@ -181,10 +271,20 @@ class PlayerActivity : AppCompatActivity() {
                 boundPosition = position
                 activeWebViews[boundPosition] = webView
                 val videoId = extractYoutubeVideoId(lesson.youtubeShortsUrl)
+                logPlayerEvent(
+                    "bind position=$position videoId=$videoId currentVideoId=$currentVideoId " +
+                        "isReady=$isPlayerReady current=${viewPager.currentItem}"
+                )
                 if (currentVideoId == videoId) {
+                    if (isPlayerReady && position == viewPager.currentItem) {
+                        logPlayerEvent("bind existing ready current position=$position")
+                        pagerAdapter.onPlayerReady(position)
+                    }
                     return
                 }
                 currentVideoId = videoId
+                isPlayerReady = false
+                logPlayerEvent("load iframe html position=$position videoId=$videoId")
                 webView.loadDataWithBaseURL(
                     PLAYER_BASE_URL,
                     buildPlayerHtml(videoId),
@@ -195,6 +295,7 @@ class PlayerActivity : AppCompatActivity() {
             }
 
             fun stop() {
+                logPlayerEvent("holder stop position=$boundPosition videoId=$currentVideoId")
                 webView.stopLoading()
                 webView.loadUrl("about:blank")
             }
@@ -202,17 +303,29 @@ class PlayerActivity : AppCompatActivity() {
             fun onVideoEnded() {
                 val position = boundPosition
                 if (position == RecyclerView.NO_POSITION) {
+                    logPlayerEvent("onVideoEnded ignored because position=NO_POSITION")
                     return
                 }
+                logPlayerEvent("onVideoEnded position=$position current=${viewPager.currentItem}")
                 moveToNextFrom(position)
             }
 
             fun onPlayerReady() {
                 val position = boundPosition
-                if (position == viewPager.currentItem) {
-                    requestAudioFocus()
-                    pagerAdapter.play(position)
+                if (position != RecyclerView.NO_POSITION) {
+                    isPlayerReady = true
+                    logPlayerEvent(
+                        "holder onPlayerReady position=$position current=${viewPager.currentItem} " +
+                            "videoId=$currentVideoId"
+                    )
+                    pagerAdapter.onPlayerReady(position)
+                } else {
+                    logPlayerEvent("holder onPlayerReady ignored because position=NO_POSITION")
                 }
+            }
+
+            fun onPlayerLog(message: String) {
+                logPlayerEvent("js position=$boundPosition videoId=$currentVideoId $message")
             }
         }
     }
@@ -233,6 +346,13 @@ class PlayerActivity : AppCompatActivity() {
                 holder.onPlayerReady()
             }
         }
+
+        @JavascriptInterface
+        fun onLog(message: String) {
+            runOnUiThread {
+                holder.onPlayerLog(message)
+            }
+        }
     }
 
     @Suppress("SetJavaScriptEnabled")
@@ -246,6 +366,7 @@ class PlayerActivity : AppCompatActivity() {
         webView.webViewClient = object : WebViewClient() {
             override fun shouldOverrideUrlLoading(view: WebView, request: WebResourceRequest): Boolean {
                 val uri = request.url
+                logPlayerEvent("shouldOverrideUrlLoading url=$uri mainFrame=${request.isForMainFrame}")
                 if (uri.scheme == "http" || uri.scheme == "https") {
                     if (request.isForMainFrame && uri.host != Uri.parse(PLAYER_BASE_URL).host) {
                         openExternal(uri)
@@ -260,6 +381,7 @@ class PlayerActivity : AppCompatActivity() {
             override fun onPageFinished(view: WebView, url: String) {
                 super.onPageFinished(view, url)
                 val position = viewPager.currentItem
+                logPlayerEvent("onPageFinished url=$url current=$position")
                 pagerAdapter.pauseExcept(position)
             }
         }
@@ -269,12 +391,19 @@ class PlayerActivity : AppCompatActivity() {
         webView.evaluateJavascript(
             """
                 (function() {
+                  if (window.BaroEnglishBridge && window.BaroEnglishBridge.onLog) {
+                    window.BaroEnglishBridge.onLog('android pause injection received');
+                  }
                   if (window.baroPause) {
                     window.baroPause();
+                  } else if (window.BaroEnglishBridge && window.BaroEnglishBridge.onLog) {
+                    window.BaroEnglishBridge.onLog('baroPause missing during injection');
                   }
                 })();
             """.trimIndent(),
-            null
+            { result ->
+                logPlayerEvent("pause evaluateJavascript result=$result")
+            }
         )
     }
 
@@ -310,8 +439,16 @@ class PlayerActivity : AppCompatActivity() {
               <script>
                 var player;
                 var isReady = false;
+                var shouldPlayWhenReady = false;
+
+                function log(message) {
+                  if (window.BaroEnglishBridge && window.BaroEnglishBridge.onLog) {
+                    window.BaroEnglishBridge.onLog(message);
+                  }
+                }
 
                 function onYouTubeIframeAPIReady() {
+                  log('onYouTubeIframeAPIReady videoId=$videoId');
                   player = new YT.Player('player', {
                     width: '100%',
                     height: '100%',
@@ -334,15 +471,19 @@ class PlayerActivity : AppCompatActivity() {
 
                 function onPlayerReady(event) {
                   isReady = true;
+                  log('onPlayerReady pending=' + !!window.baroPendingPlayFromStart + ' should=' + shouldPlayWhenReady);
                   event.target.unMute();
                   event.target.setVolume(100);
-                  event.target.playVideo();
+                  if (window.baroPendingPlayFromStart || shouldPlayWhenReady) {
+                    window.baroPlayFromStart();
+                  }
                   if (window.BaroEnglishBridge && window.BaroEnglishBridge.onPlayerReady) {
                     window.BaroEnglishBridge.onPlayerReady();
                   }
                 }
 
                 function onPlayerStateChange(event) {
+                  log('onPlayerStateChange state=' + event.data);
                   if (event.data === YT.PlayerState.ENDED &&
                       window.BaroEnglishBridge &&
                       window.BaroEnglishBridge.onVideoEnded) {
@@ -351,20 +492,48 @@ class PlayerActivity : AppCompatActivity() {
                 }
 
                 window.baroPlayFromStart = function() {
+                  shouldPlayWhenReady = true;
+                  log('baroPlayFromStart called ready=' + isReady + ' hasPlayer=' + !!player);
                   if (!isReady || !player || !player.seekTo || !player.playVideo) {
+                    log('baroPlayFromStart deferred');
                     return;
                   }
                   player.unMute();
                   player.setVolume(100);
                   player.seekTo(0, true);
                   player.playVideo();
+                  log('baroPlayFromStart executed');
+                  window.baroPendingPlayFromStart = false;
+                  shouldPlayWhenReady = false;
+                };
+
+                window.baroEnsurePlaying = function(attempt) {
+                  shouldPlayWhenReady = true;
+                  if (!isReady || !player || !player.getPlayerState || !player.playVideo) {
+                    log('baroEnsurePlaying deferred attempt=' + attempt + ' ready=' + isReady + ' hasPlayer=' + !!player);
+                    return 'deferred';
+                  }
+                  var state = player.getPlayerState();
+                  log('baroEnsurePlaying attempt=' + attempt + ' state=' + state);
+                  if (state === YT.PlayerState.PLAYING || state === YT.PlayerState.BUFFERING) {
+                    window.baroPendingPlayFromStart = false;
+                    shouldPlayWhenReady = false;
+                    return 'already-playing:' + state;
+                  }
+                  player.unMute();
+                  player.setVolume(100);
+                  player.playVideo();
+                  log('baroEnsurePlaying retried attempt=' + attempt + ' previousState=' + state);
+                  return 'retried:' + state;
                 };
 
                 window.baroPause = function() {
+                  log('baroPause called ready=' + isReady + ' hasPlayer=' + !!player);
                   if (!isReady || !player || !player.pauseVideo) {
                     return;
                   }
                   player.pauseVideo();
+                  log('baroPause executed');
                 };
               </script>
             </body>
