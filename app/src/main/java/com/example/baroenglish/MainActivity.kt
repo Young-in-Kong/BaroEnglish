@@ -16,6 +16,7 @@ class MainActivity : AppCompatActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        LessonRepository.loadCachedLessons(this)
         setContentView(R.layout.activity_main)
 
         findViewById<View>(R.id.settingsButton).setOnClickListener {
@@ -33,6 +34,10 @@ class MainActivity : AppCompatActivity() {
             layoutManager = LinearLayoutManager(this@MainActivity)
             adapter = lessonAdapter
             ItemTouchHelper(LessonMoveCallback(lessonAdapter)).attachToRecyclerView(this)
+        }
+
+        LessonRepository.refreshLessons(this) {
+            lessonAdapter.notifyDataSetChanged()
         }
     }
 }
