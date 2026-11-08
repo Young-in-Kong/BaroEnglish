@@ -1,47 +1,26 @@
-<?xml version="1.0" encoding="utf-8"?>
-<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
-    android:layout_width="match_parent"
-    android:layout_height="match_parent"
-    android:background="@color/baro_background"
-    android:orientation="vertical">
-
-    <LinearLayout
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:gravity="center_vertical"
-        android:orientation="horizontal"
-        android:paddingStart="20dp"
-        android:paddingTop="14dp"
-        android:paddingEnd="8dp"
-        android:paddingBottom="10dp">
-
-        <TextView
-            android:id="@+id/mainTitle"
-            android:layout_width="0dp"
-            android:layout_height="wrap_content"
-            android:layout_weight="1"
-            android:text="@string/app_name"
-            android:textColor="@color/baro_text"
-            android:textSize="28sp"
-            android:textStyle="bold" />
-
-        <ImageButton
-            android:id="@+id/settingsButton"
-            android:layout_width="48dp"
-            android:layout_height="48dp"
-            android:background="?attr/selectableItemBackgroundBorderless"
-            android:contentDescription="@string/settings"
-            android:padding="12dp"
-            android:src="@drawable/ic_settings_24"
-            android:tint="@color/baro_text" />
-    </LinearLayout>
-
-    <androidx.recyclerview.widget.RecyclerView
-        android:id="@+id/lessonRecyclerView"
-        android:layout_width="match_parent"
-        android:layout_height="0dp"
-        android:layout_weight="1"
-        android:clipToPadding="false"
-        android:paddingBottom="12dp" />
-
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android" android:layout_width="match_parent" android:layout_height="match_parent" android:orientation="vertical" android:background="@color/baro_background">
+<FrameLayout android:layout_width="match_parent" android:layout_height="0dp" android:layout_weight="1">
+<LinearLayout android:id="@+id/homePanel" android:layout_width="match_parent" android:layout_height="match_parent" android:orientation="vertical">
+<LinearLayout android:layout_width="match_parent" android:layout_height="56dp" android:gravity="center_vertical" android:paddingHorizontal="20dp">
+<TextView android:layout_width="0dp" android:layout_height="wrap_content" android:layout_weight="1" android:text="@string/tab_home" android:textSize="26sp" android:textStyle="bold" android:textColor="@color/baro_text" />
+<Button android:id="@+id/refreshButton" android:layout_width="wrap_content" android:layout_height="48dp" android:text="@string/refresh_home" />
 </LinearLayout>
+<ProgressBar android:id="@+id/homeProgress" style="?android:attr/progressBarStyleHorizontal" android:layout_width="match_parent" android:layout_height="3dp" />
+<FrameLayout android:layout_width="match_parent" android:layout_height="0dp" android:layout_weight="1">
+<WebView android:id="@+id/homeWebView" android:layout_width="match_parent" android:layout_height="match_parent" />
+<LinearLayout android:id="@+id/homeError" android:layout_width="match_parent" android:layout_height="match_parent" android:orientation="vertical" android:gravity="center" android:padding="24dp" android:background="@color/baro_background" android:visibility="gone">
+<TextView android:layout_width="match_parent" android:layout_height="wrap_content" android:gravity="center" android:text="@string/home_load_failed" />
+<Button android:id="@+id/retryButton" android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="@string/retry" />
+</LinearLayout></FrameLayout></LinearLayout>
+<LinearLayout android:id="@+id/lessonsPanel" android:layout_width="match_parent" android:layout_height="match_parent" android:orientation="vertical" android:visibility="gone">
+<TextView android:layout_width="match_parent" android:layout_height="56dp" android:gravity="center_vertical" android:paddingHorizontal="20dp" android:text="@string/tab_lessons" android:textSize="26sp" android:textStyle="bold" android:textColor="@color/baro_text" />
+<androidx.recyclerview.widget.RecyclerView android:id="@+id/lessonRecyclerView" android:layout_width="match_parent" android:layout_height="0dp" android:layout_weight="1" android:clipToPadding="false" android:paddingBottom="12dp" />
+</LinearLayout>
+<include android:id="@+id/settingsPanel" layout="@layout/activity_settings" android:layout_width="match_parent" android:layout_height="match_parent" android:visibility="gone" />
+</FrameLayout>
+<View android:layout_width="match_parent" android:layout_height="1dp" android:background="#292929" />
+<LinearLayout android:layout_width="match_parent" android:layout_height="76dp" android:background="#000000" android:orientation="horizontal" android:baselineAligned="false">
+<TextView android:id="@+id/tabHome" android:layout_width="0dp" android:layout_height="match_parent" android:layout_weight="1" android:gravity="center" android:paddingTop="10dp" android:paddingBottom="8dp" android:drawableTop="@drawable/ic_tab_home" android:drawablePadding="5dp" android:text="@string/tab_home" android:textColor="#FFFFFF" android:textSize="12sp" android:background="?attr/selectableItemBackground" android:clickable="true" android:focusable="true" />
+<TextView android:id="@+id/tabLessons" android:layout_width="0dp" android:layout_height="match_parent" android:layout_weight="1" android:gravity="center" android:paddingTop="10dp" android:paddingBottom="8dp" android:drawableTop="@drawable/ic_tab_lessons" android:drawablePadding="5dp" android:text="@string/tab_lessons" android:textColor="#FFFFFF" android:textSize="12sp" android:background="?attr/selectableItemBackground" android:clickable="true" android:focusable="true" />
+<TextView android:id="@+id/tabSettings" android:layout_width="0dp" android:layout_height="match_parent" android:layout_weight="1" android:gravity="center" android:paddingTop="10dp" android:paddingBottom="8dp" android:drawableTop="@drawable/ic_tab_settings" android:drawablePadding="5dp" android:text="@string/settings" android:textColor="#FFFFFF" android:textSize="12sp" android:background="?attr/selectableItemBackground" android:clickable="true" android:focusable="true" />
+</LinearLayout></LinearLayout>

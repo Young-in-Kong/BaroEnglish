@@ -8,4 +8,12 @@
     <string name="repeat_one">영상 하나 반복</string>
     <string name="repeat_all">전체 반복</string>
     <string name="play_once">1회 재생</string>
+    <string name="home_url" translatable="false">https://engines-motorola-upon-toolkit.trycloudflare.com</string>
+    <string name="home_title">바로쓰는 영어</string>
+    <string name="lesson_list">영상 목록</string>
+    <string name="refresh_home">홈 새로고침</string>
+    <string name="home_load_failed">홈을 불러오지 못했어요. 인터넷 연결을 확인하고 다시 시도해 주세요.</string>
+    <string name="retry">다시 시도</string>
+    <string name="tab_home">홈</string>
+    <string name="tab_lessons">영어 영상</string>
 </resources>
