@@ -1,17 +1,47 @@
 <?xml version="1.0" encoding="utf-8"?>
-<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android" android:layout_width="match_parent" android:layout_height="match_parent" android:orientation="vertical" android:background="@color/baro_background">
-    <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content" android:gravity="center_vertical" android:paddingHorizontal="12dp">
-        <TextView android:layout_width="0dp" android:layout_height="wrap_content" android:layout_weight="1" android:text="@string/home_title" android:textColor="@color/baro_text" android:textStyle="bold" android:textSize="18sp" />
-        <Button android:id="@+id/lessonsButton" android:layout_width="wrap_content" android:layout_height="48dp" android:text="@string/lesson_list" />
-        <ImageButton android:id="@+id/settingsButton" android:layout_width="48dp" android:layout_height="48dp" android:background="?attr/selectableItemBackgroundBorderless" android:src="@drawable/ic_settings_24" android:contentDescription="@string/settings" android:padding="12dp" />
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:background="@color/baro_background"
+    android:orientation="vertical">
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:gravity="center_vertical"
+        android:orientation="horizontal"
+        android:paddingStart="20dp"
+        android:paddingTop="14dp"
+        android:paddingEnd="8dp"
+        android:paddingBottom="10dp">
+
+        <TextView
+            android:id="@+id/mainTitle"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:text="@string/app_name"
+            android:textColor="@color/baro_text"
+            android:textSize="28sp"
+            android:textStyle="bold" />
+
+        <ImageButton
+            android:id="@+id/settingsButton"
+            android:layout_width="48dp"
+            android:layout_height="48dp"
+            android:background="?attr/selectableItemBackgroundBorderless"
+            android:contentDescription="@string/settings"
+            android:padding="12dp"
+            android:src="@drawable/ic_settings_24"
+            android:tint="@color/baro_text" />
     </LinearLayout>
-    <ProgressBar android:id="@+id/homeProgress" style="?android:attr/progressBarStyleHorizontal" android:layout_width="match_parent" android:layout_height="3dp" />
-    <FrameLayout android:layout_width="match_parent" android:layout_height="0dp" android:layout_weight="1">
-        <WebView android:id="@+id/homeWebView" android:layout_width="match_parent" android:layout_height="match_parent" />
-        <LinearLayout android:id="@+id/homeError" android:layout_width="match_parent" android:layout_height="match_parent" android:background="@color/baro_background" android:orientation="vertical" android:gravity="center" android:padding="24dp" android:visibility="gone">
-            <TextView android:layout_width="match_parent" android:layout_height="wrap_content" android:text="@string/home_load_failed" android:gravity="center" />
-            <Button android:id="@+id/retryButton" android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="@string/retry" />
-        </LinearLayout>
-    </FrameLayout>
-    <Button android:id="@+id/refreshButton" android:layout_width="match_parent" android:layout_height="48dp" android:text="@string/refresh_home" />
+
+    <androidx.recyclerview.widget.RecyclerView
+        android:id="@+id/lessonRecyclerView"
+        android:layout_width="match_parent"
+        android:layout_height="0dp"
+        android:layout_weight="1"
+        android:clipToPadding="false"
+        android:paddingBottom="12dp" />
+
 </LinearLayout>
