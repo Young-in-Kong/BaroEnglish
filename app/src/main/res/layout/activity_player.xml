@@ -2,7 +2,7 @@
 <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
-    android:background="@color/baro_player_background"
+    android:background="@color/baro_background"
     android:orientation="vertical">
 
     <LinearLayout
@@ -19,7 +19,7 @@
             android:layout_height="match_parent"
             android:gravity="center"
             android:text="@string/back"
-            android:textColor="@color/baro_player_text"
+            android:textColor="@color/baro_text"
             android:textSize="24sp" />
 
         <TextView
@@ -29,7 +29,7 @@
             android:layout_weight="1"
             android:ellipsize="end"
             android:maxLines="1"
-            android:textColor="@color/baro_player_text"
+            android:textColor="@color/baro_text"
             android:textSize="18sp"
             android:textStyle="bold" />
     </LinearLayout>

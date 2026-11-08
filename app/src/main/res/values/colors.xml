@@ -1,7 +1,9 @@
-<?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <color name="baro_background">#F7F8FA</color>
-    <color name="baro_text">#171A1F</color>
-    <color name="baro_player_background">#000000</color>
-    <color name="baro_player_text">#FFFFFF</color>
+<color name="baro_background">#F7F9FD</color>
+<color name="baro_text">#152447</color>
+<color name="baro_surface">#FFFFFF</color>
+<color name="baro_line">#E6EBF4</color>
+<color name="baro_accent">#2862EE</color>
+<color name="baro_player_background">#000000</color>
+<color name="baro_player_text">#FFFFFF</color>
 </resources>

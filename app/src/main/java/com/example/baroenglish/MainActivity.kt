@@ -32,6 +32,7 @@ class MainActivity : AppCompatActivity() {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_main)
         web = findViewById(R.id.homeWebView)
+        web.setBackgroundColor(getColor(R.color.baro_background))
         error = findViewById(R.id.homeError)
         progress = findViewById(R.id.homeProgress)
         setupLessons()
@@ -42,6 +43,8 @@ class MainActivity : AppCompatActivity() {
         findViewById<View>(R.id.retryButton).setOnClickListener { web.loadUrl(homeUrl) }
         homeRefresh = findViewById(R.id.homeRefresh)
         homeRefresh.setOnChildScrollUpCallback { _, _ -> web.canScrollVertically(-1) }
+        homeRefresh.setColorSchemeColors(getColor(R.color.baro_accent))
+        homeRefresh.setProgressBackgroundColorSchemeColor(getColor(R.color.baro_surface))
         homeRefresh.setOnRefreshListener { web.reload() }
         // Keep refresh accessible without displaying a separate button.
         androidx.core.view.ViewCompat.addAccessibilityAction(

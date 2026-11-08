@@ -1,0 +1,7 @@
+<resources>
+<color name="baro_background">#111827</color>
+<color name="baro_text">#E8EEF9</color>
+<color name="baro_surface">#1B2638</color>
+<color name="baro_line">#344158</color>
+<color name="baro_accent">#8BB3FF</color>
+</resources>
