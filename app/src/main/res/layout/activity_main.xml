@@ -3,11 +3,12 @@
 <LinearLayout android:id="@+id/homePanel" android:layout_width="match_parent" android:layout_height="match_parent" android:orientation="vertical">
 <LinearLayout android:layout_width="match_parent" android:layout_height="56dp" android:gravity="center_vertical" android:paddingHorizontal="20dp">
 <TextView android:layout_width="0dp" android:layout_height="wrap_content" android:layout_weight="1" android:text="@string/tab_home" android:textSize="26sp" android:textStyle="bold" android:textColor="@color/baro_text" />
-<Button android:id="@+id/refreshButton" android:layout_width="wrap_content" android:layout_height="48dp" android:text="@string/refresh_home" />
 </LinearLayout>
 <ProgressBar android:id="@+id/homeProgress" style="?android:attr/progressBarStyleHorizontal" android:layout_width="match_parent" android:layout_height="3dp" />
 <FrameLayout android:layout_width="match_parent" android:layout_height="0dp" android:layout_weight="1">
+<androidx.swiperefreshlayout.widget.SwipeRefreshLayout android:id="@+id/homeRefresh" android:layout_width="match_parent" android:layout_height="match_parent">
 <WebView android:id="@+id/homeWebView" android:layout_width="match_parent" android:layout_height="match_parent" />
+</androidx.swiperefreshlayout.widget.SwipeRefreshLayout>
 <LinearLayout android:id="@+id/homeError" android:layout_width="match_parent" android:layout_height="match_parent" android:orientation="vertical" android:gravity="center" android:padding="24dp" android:background="@color/baro_background" android:visibility="gone">
 <TextView android:layout_width="match_parent" android:layout_height="wrap_content" android:gravity="center" android:text="@string/home_load_failed" />
 <Button android:id="@+id/retryButton" android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="@string/retry" />

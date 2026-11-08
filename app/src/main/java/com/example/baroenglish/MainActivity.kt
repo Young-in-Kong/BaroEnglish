@@ -19,6 +19,7 @@ import androidx.activity.OnBackPressedCallback
 import androidx.appcompat.app.AppCompatActivity
 
 class MainActivity : AppCompatActivity() {
+    private lateinit var homeRefresh: androidx.swiperefreshlayout.widget.SwipeRefreshLayout
     private lateinit var web: WebView
     private lateinit var error: View
     private lateinit var progress: ProgressBar
@@ -39,7 +40,13 @@ class MainActivity : AppCompatActivity() {
             findViewById<View>(id).setOnClickListener { selectTab(index) }
         }
         findViewById<View>(R.id.retryButton).setOnClickListener { web.loadUrl(homeUrl) }
-        findViewById<View>(R.id.refreshButton).setOnClickListener { web.reload() }
+        homeRefresh = findViewById(R.id.homeRefresh)
+        homeRefresh.setOnChildScrollUpCallback { _, _ -> web.canScrollVertically(-1) }
+        homeRefresh.setOnRefreshListener { web.reload() }
+        // Keep refresh accessible without displaying a separate button.
+        androidx.core.view.ViewCompat.addAccessibilityAction(
+            homeRefresh, getString(R.string.refresh_home)
+        ) { _, _ -> homeRefresh.isRefreshing = true; web.reload(); true }
         selectTab(savedInstanceState?.getInt("tab") ?: 0)
         web.settings.apply {
             javaScriptEnabled = true
@@ -67,6 +74,7 @@ class MainActivity : AppCompatActivity() {
             }
             override fun onPageFinished(view: WebView, url: String) {
                 progress.visibility = View.GONE
+                homeRefresh.isRefreshing = false
                 if (!loadFailed) error.visibility = View.GONE
                 CookieManager.getInstance().flush()
             }
@@ -157,7 +165,7 @@ class MainActivity : AppCompatActivity() {
         if (index == 0) web.onResume()
     }
 
-    private fun showError() { loadFailed = true; error.visibility = View.VISIBLE; progress.visibility = View.GONE }
+    private fun showError() { homeRefresh.isRefreshing = false; loadFailed = true; error.visibility = View.VISIBLE; progress.visibility = View.GONE }
     private fun openExternal(uri: Uri) {
         if (uri.scheme !in listOf("https", "http")) return
         try { startActivity(Intent(Intent.ACTION_VIEW, uri).addCategory(Intent.CATEGORY_BROWSABLE)) }
