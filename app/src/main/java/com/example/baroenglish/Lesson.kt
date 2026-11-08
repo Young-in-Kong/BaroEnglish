@@ -17,6 +17,7 @@ object LessonRepository {
     private const val LESSON_LIST_URL =
         "https://raw.githubusercontent.com/Young-in-Kong/BaroEnglish/develop/1.0/Lesson.txt"
     private const val PREFS_NAME = "lesson_repository"
+    private const val KEY_REMOVED_IDS = "removed_lesson_ids"
     private const val KEY_ADDED_LESSONS = "added_lessons"
     private const val KEY_CACHED_LESSONS = "cached_lessons"
 
@@ -56,7 +57,25 @@ object LessonRepository {
         android.net.Uri.parse(lesson.youtubeShortsUrl).let { it.getQueryParameter("v") ?: it.lastPathSegment ?: lesson.youtubeShortsUrl }
 
     private fun mergeAdded(context: Context, base: List<Lesson>): List<Lesson> =
-        (base + addedLessons(context)).distinctBy { videoKey(it) }
+        (base + addedLessons(context)).distinctBy { videoKey(it) }.filterNot { videoKey(it) in removedIds(context) }
+
+    private fun removedIds(context: Context): Set<String> =
+        context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE).getStringSet(KEY_REMOVED_IDS, emptySet()).orEmpty().toSet()
+
+    fun videoIds(): List<String> = lessons.map { videoKey(it) }
+
+    fun removeLesson(context: Context, videoId: String): String {
+        if (!videoId.matches(Regex("[A-Za-z0-9_-]{11}"))) return "invalid"
+        val rows = org.json.JSONArray()
+        addedLessons(context).filterNot { videoKey(it) == videoId }.forEach {
+            rows.put(org.json.JSONObject().put("title", it.title).put("url", it.youtubeShortsUrl))
+        }
+        if (!context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE).edit()
+                .putString(KEY_ADDED_LESSONS, rows.toString())
+                .putStringSet(KEY_REMOVED_IDS, removedIds(context) + videoId).commit()) return "error"
+        lessons.removeAll { videoKey(it) == videoId }
+        return "removed"
+    }
 
     fun addLesson(context: Context, title: String, videoId: String): String {
         if (!videoId.matches(Regex("[A-Za-z0-9_-]{11}")) || title.isBlank() || title.length > 200) return "invalid"
@@ -67,7 +86,8 @@ object LessonRepository {
             rows.put(org.json.JSONObject().put("title", it.title).put("url", it.youtubeShortsUrl))
         }
         if (!context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE).edit()
-                .putString(KEY_ADDED_LESSONS, rows.toString()).commit()) return "error"
+                .putString(KEY_ADDED_LESSONS, rows.toString())
+                .putStringSet(KEY_REMOVED_IDS, removedIds(context) - videoId).commit()) return "error"
         lessons.add(lesson)
         return "added"
     }
@@ -107,9 +127,6 @@ object LessonRepository {
     }
 
     private fun replaceLessons(newLessons: List<Lesson>) {
-        if (newLessons.isEmpty()) {
-            return
-        }
         synchronized(lessons) {
             lessons.clear()
             lessons.addAll(newLessons)

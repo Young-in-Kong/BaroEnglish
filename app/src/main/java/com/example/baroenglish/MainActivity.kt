@@ -66,12 +66,13 @@ class MainActivity : AppCompatActivity() {
             override fun shouldOverrideUrlLoading(view: WebView, request: WebResourceRequest): Boolean {
                 if (!request.isForMainFrame) return false
                 val uri = request.url
-                if (uri.scheme == "https" && uri.host == Uri.parse(homeUrl).host && uri.port == -1 && uri.path == "/__playlist/add") {
+                if (uri.scheme == "https" && uri.host == Uri.parse(homeUrl).host && uri.port == -1 && uri.path in listOf("/__playlist/add", "/__playlist/remove")) {
                     val source = view.url?.let { Uri.parse(it) }
                     if (request.hasGesture() && source?.scheme == "https" && source.host == uri.host && source.port == -1) {
                         val videoId = uri.getQueryParameter("videoId").orEmpty()
-                        val status = LessonRepository.addLesson(this@MainActivity, uri.getQueryParameter("title").orEmpty(), videoId)
-                        if (status == "added") findViewById<RecyclerView>(R.id.lessonRecyclerView).adapter?.notifyDataSetChanged()
+                        val status = if (uri.path == "/__playlist/remove") LessonRepository.removeLesson(this@MainActivity, videoId)
+                            else LessonRepository.addLesson(this@MainActivity, uri.getQueryParameter("title").orEmpty(), videoId)
+                        if (status == "added" || status == "removed") findViewById<RecyclerView>(R.id.lessonRecyclerView).adapter?.notifyDataSetChanged()
                         val result = org.json.JSONObject().put("videoId", videoId).put("status", status)
                         web.evaluateJavascript("window.dispatchEvent(new CustomEvent('baro-playlist-result',{detail:$result}));", null)
                     }
@@ -91,7 +92,7 @@ class MainActivity : AppCompatActivity() {
                 homeRefresh.isRefreshing = false
                 if (!loadFailed) error.visibility = View.GONE
                 if (!loadFailed && Uri.parse(url).let { it.scheme == "https" && it.host == Uri.parse(homeUrl).host && it.port == -1 }) {
-                    web.evaluateJavascript("window.BaroPlaylistAvailable=true;", null)
+                    publishPlaylistState()
                 }
                 CookieManager.getInstance().flush()
             }
@@ -133,6 +134,13 @@ class MainActivity : AppCompatActivity() {
         if (savedInstanceState == null || web.restoreState(savedInstanceState) == null) web.loadUrl(homeUrl)
     }
 
+    private fun publishPlaylistState() {
+        val uri = web.url?.let { Uri.parse(it) } ?: return
+        if (uri.scheme != "https" || uri.host != Uri.parse(homeUrl).host || uri.port != -1) return
+        val ids = org.json.JSONArray(LessonRepository.videoIds())
+        web.evaluateJavascript("window.BaroPlaylistAvailable=true;window.BaroPlaylistVersion=2;window.BaroPlaylistIds=$ids;window.dispatchEvent(new CustomEvent('baro-playlist-state',{detail:$ids}));", null)
+    }
+
     private fun setupLessons() {
         LessonRepository.loadCachedLessons(this)
         val lessonAdapter = LessonAdapter(LessonRepository.lessons) { position ->
@@ -143,7 +151,7 @@ class MainActivity : AppCompatActivity() {
             adapter = lessonAdapter
             ItemTouchHelper(LessonMoveCallback(lessonAdapter)).attachToRecyclerView(this)
         }
-        LessonRepository.refreshLessons(this) { lessonAdapter.notifyDataSetChanged() }
+        LessonRepository.refreshLessons(this) { lessonAdapter.notifyDataSetChanged(); publishPlaylistState() }
     }
 
     private fun setupSettings() {
