@@ -15,5 +15,5 @@
     <string name="home_load_failed">홈을 불러오지 못했어요. 인터넷 연결을 확인하고 다시 시도해 주세요.</string>
     <string name="retry">다시 시도</string>
     <string name="tab_home">홈</string>
-    <string name="tab_lessons">영어 영상</string>
+    <string name="tab_lessons">재생 목록</string>
 </resources>
