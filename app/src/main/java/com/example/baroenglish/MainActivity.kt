@@ -66,6 +66,17 @@ class MainActivity : AppCompatActivity() {
             override fun shouldOverrideUrlLoading(view: WebView, request: WebResourceRequest): Boolean {
                 if (!request.isForMainFrame) return false
                 val uri = request.url
+                if (uri.scheme == "https" && uri.host == Uri.parse(homeUrl).host && uri.port == -1 && uri.path == "/__playlist/add") {
+                    val source = view.url?.let { Uri.parse(it) }
+                    if (request.hasGesture() && source?.scheme == "https" && source.host == uri.host && source.port == -1) {
+                        val videoId = uri.getQueryParameter("videoId").orEmpty()
+                        val status = LessonRepository.addLesson(this@MainActivity, uri.getQueryParameter("title").orEmpty(), videoId)
+                        if (status == "added") findViewById<RecyclerView>(R.id.lessonRecyclerView).adapter?.notifyDataSetChanged()
+                        val result = org.json.JSONObject().put("videoId", videoId).put("status", status)
+                        web.evaluateJavascript("window.dispatchEvent(new CustomEvent('baro-playlist-result',{detail:$result}));", null)
+                    }
+                    return true
+                }
                 if (uri.scheme == "https" && uri.host == Uri.parse(homeUrl).host && uri.port == -1) return false
                 openExternal(uri)
                 return true
@@ -79,6 +90,9 @@ class MainActivity : AppCompatActivity() {
                 progress.visibility = View.GONE
                 homeRefresh.isRefreshing = false
                 if (!loadFailed) error.visibility = View.GONE
+                if (!loadFailed && Uri.parse(url).let { it.scheme == "https" && it.host == Uri.parse(homeUrl).host && it.port == -1 }) {
+                    web.evaluateJavascript("window.BaroPlaylistAvailable=true;", null)
+                }
                 CookieManager.getInstance().flush()
             }
             override fun onReceivedError(view: WebView, request: WebResourceRequest, problem: WebResourceError) {

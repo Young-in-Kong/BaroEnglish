@@ -17,6 +17,7 @@ object LessonRepository {
     private const val LESSON_LIST_URL =
         "https://raw.githubusercontent.com/Young-in-Kong/BaroEnglish/develop/1.0/Lesson.txt"
     private const val PREFS_NAME = "lesson_repository"
+    private const val KEY_ADDED_LESSONS = "added_lessons"
     private const val KEY_CACHED_LESSONS = "cached_lessons"
 
     private val defaultLessons = listOf(
@@ -43,11 +44,39 @@ object LessonRepository {
 
     val lessons = defaultLessons.toMutableList()
 
+    private fun addedLessons(context: Context): List<Lesson> = runCatching {
+        val rows = org.json.JSONArray(context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+            .getString(KEY_ADDED_LESSONS, "[]"))
+        (0 until rows.length()).map { rows.getJSONObject(it) }.map {
+            Lesson(it.getString("title"), it.getString("url"))
+        }
+    }.getOrDefault(emptyList())
+
+    private fun videoKey(lesson: Lesson): String =
+        android.net.Uri.parse(lesson.youtubeShortsUrl).let { it.getQueryParameter("v") ?: it.lastPathSegment ?: lesson.youtubeShortsUrl }
+
+    private fun mergeAdded(context: Context, base: List<Lesson>): List<Lesson> =
+        (base + addedLessons(context)).distinctBy { videoKey(it) }
+
+    fun addLesson(context: Context, title: String, videoId: String): String {
+        if (!videoId.matches(Regex("[A-Za-z0-9_-]{11}")) || title.isBlank() || title.length > 200) return "invalid"
+        if (lessons.any { videoKey(it) == videoId }) return "exists"
+        val lesson = Lesson(title, "https://www.youtube.com/shorts/$videoId")
+        val rows = org.json.JSONArray()
+        (addedLessons(context) + lesson).distinctBy { videoKey(it) }.forEach {
+            rows.put(org.json.JSONObject().put("title", it.title).put("url", it.youtubeShortsUrl))
+        }
+        if (!context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE).edit()
+                .putString(KEY_ADDED_LESSONS, rows.toString()).commit()) return "error"
+        lessons.add(lesson)
+        return "added"
+    }
+
     fun loadCachedLessons(context: Context) {
         val cachedText = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
             .getString(KEY_CACHED_LESSONS, null)
-            ?: return
-        replaceLessons(parseLessons(cachedText))
+        val base = cachedText?.let { parseLessons(it) }?.takeIf { it.isNotEmpty() } ?: defaultLessons
+        replaceLessons(mergeAdded(context, base))
     }
 
     fun refreshLessons(context: Context, onUpdated: () -> Unit) {
@@ -63,7 +92,7 @@ object LessonRepository {
                 .putString(KEY_CACHED_LESSONS, remoteText)
                 .apply()
             Handler(Looper.getMainLooper()).post {
-                replaceLessons(remoteLessons)
+                replaceLessons(mergeAdded(appContext, remoteLessons))
                 onUpdated()
             }
         }.start()
