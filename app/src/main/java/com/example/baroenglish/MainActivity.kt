@@ -37,6 +37,7 @@ class MainActivity : AppCompatActivity() {
         progress = findViewById(R.id.homeProgress)
         setupLessons()
         setupSettings()
+        EnglishStartRepository.refresh(this) {}
         listOf(R.id.tabHome, R.id.tabLessons, R.id.tabSettings).forEachIndexed { index, id ->
             findViewById<View>(id).setOnClickListener { selectTab(index) }
         }
@@ -156,6 +157,12 @@ class MainActivity : AppCompatActivity() {
 
     private fun setupSettings() {
         findViewById<View>(R.id.settingsBackButton).visibility = View.GONE
+        findViewById<androidx.appcompat.widget.SwitchCompat>(R.id.englishOnlySwitch).apply {
+            isChecked = PlaybackSettings.isEnglishOnly(this@MainActivity)
+            setOnCheckedChangeListener { _, checked ->
+                PlaybackSettings.setEnglishOnly(this@MainActivity, checked)
+            }
+        }
         val group = findViewById<RadioGroup>(R.id.playbackModeGroup)
         group.check(when (PlaybackSettings.getPlaybackMode(this)) {
             PlaybackMode.REPEAT_ONE -> R.id.repeatOneButton

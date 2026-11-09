@@ -12,6 +12,14 @@ object PlaybackSettings {
     private const val PREFS_NAME = "playback_settings"
     private const val KEY_PLAYBACK_MODE = "playback_mode"
 
+    fun isEnglishOnly(context: Context): Boolean =
+        context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE).getBoolean("english_only", false)
+
+    fun setEnglishOnly(context: Context, enabled: Boolean) {
+        context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE).edit()
+            .putBoolean("english_only", enabled).apply()
+    }
+
     fun getPlaybackMode(context: Context): PlaybackMode {
         val savedValue = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
             .getString(KEY_PLAYBACK_MODE, PlaybackMode.PLAY_ONCE.name)

@@ -22,7 +22,11 @@ import androidx.recyclerview.widget.RecyclerView
 import androidx.viewpager2.widget.ViewPager2
 
 class PlayerActivity : AppCompatActivity() {
-    private val lessons = LessonRepository.lessons
+    private val lessons = LessonRepository.lessons.toList()
+    private var englishStarts: Map<String, Double> = emptyMap()
+    private var englishOnly = false
+    private val missingNotices = mutableSetOf<String>()
+    private var isForeground = false
     private lateinit var titleView: TextView
     private lateinit var viewPager: ViewPager2
     private lateinit var pagerAdapter: ShortsPagerAdapter
@@ -33,12 +37,26 @@ class PlayerActivity : AppCompatActivity() {
         volumeControlStream = AudioManager.STREAM_MUSIC
         setContentView(R.layout.activity_player)
 
+        if (lessons.isEmpty()) { finish(); return }
+        englishOnly = PlaybackSettings.isEnglishOnly(this)
         val initialIndex = intent.getIntExtra(EXTRA_INDEX, 0).coerceIn(0, lessons.lastIndex)
 
         titleView = findViewById(R.id.playerTitle)
         viewPager = findViewById(R.id.playerViewPager)
         findViewById<View>(R.id.backButton).setOnClickListener { finish() }
 
+        if (englishOnly) {
+            titleView.setText(R.string.english_start_loading)
+            EnglishStartRepository.refresh(this) { starts ->
+                if (!isFinishing && !isDestroyed) {
+                    englishStarts = starts
+                    setupPlayer(initialIndex)
+                }
+            }
+        } else setupPlayer(initialIndex)
+    }
+
+    private fun setupPlayer(initialIndex: Int) {
         pagerAdapter = ShortsPagerAdapter(lessons)
         viewPager.adapter = pagerAdapter
         viewPager.setCurrentItem(initialIndex, false)
@@ -46,11 +64,28 @@ class PlayerActivity : AppCompatActivity() {
         viewPager.registerOnPageChangeCallback(object : ViewPager2.OnPageChangeCallback() {
             override fun onPageSelected(position: Int) {
                 lastAutoAdvancedPosition = RecyclerView.NO_POSITION
-                logPlayerEvent("onPageSelected position=$position")
                 updateTitle(position)
                 pagerAdapter.play(position)
             }
         })
+        viewPager.post { if (isForeground) pagerAdapter.play(initialIndex) }
+    }
+
+    override fun onResume() {
+        super.onResume()
+        isForeground = true
+        if (::pagerAdapter.isInitialized) pagerAdapter.resume(viewPager.currentItem)
+    }
+
+    override fun onPause() {
+        isForeground = false
+        if (::pagerAdapter.isInitialized) pagerAdapter.pauseExcept(RecyclerView.NO_POSITION)
+        super.onPause()
+    }
+
+    override fun onDestroy() {
+        if (::viewPager.isInitialized) viewPager.adapter = null
+        super.onDestroy()
     }
 
     private fun updateTitle(position: Int) {
@@ -90,7 +125,8 @@ class PlayerActivity : AppCompatActivity() {
             PlaybackMode.REPEAT_ALL -> {
                 val nextPosition = if (position == lessons.lastIndex) 0 else position + 1
                 logPlayerEvent("moveToNext repeatAll from=$position to=$nextPosition")
-                viewPager.setCurrentItem(nextPosition, true)
+                if (nextPosition == position) pagerAdapter.play(position)
+                else viewPager.setCurrentItem(nextPosition, true)
             }
             PlaybackMode.PLAY_ONCE -> {
                 val nextPosition = position + 1
@@ -152,6 +188,11 @@ class PlayerActivity : AppCompatActivity() {
         }
 
         fun play(position: Int) {
+            if (!isForeground) return
+            val id = extractYoutubeVideoId(lessons[position].youtubeShortsUrl)
+            if (englishOnly && id !in englishStarts && missingNotices.add(id)) {
+                Toast.makeText(this@PlayerActivity, R.string.english_start_missing, Toast.LENGTH_LONG).show()
+            }
             pendingPlayPosition = position
             logPlayerEvent(
                 "play requested position=$position current=${viewPager.currentItem} " +
@@ -187,7 +228,7 @@ class PlayerActivity : AppCompatActivity() {
 
         private fun verifyPlaybackStarted(position: Int, attempt: Int) {
             viewPager.postDelayed({
-                if (position != viewPager.currentItem || pendingPlayPosition != position) {
+                if (!isForeground || position != viewPager.currentItem || pendingPlayPosition != position) {
                     logPlayerEvent(
                         "verifyPlayback skipped position=$position attempt=$attempt " +
                             "current=${viewPager.currentItem} pending=$pendingPlayPosition"
@@ -223,8 +264,15 @@ class PlayerActivity : AppCompatActivity() {
             }, attempt * 500L)
         }
 
+        fun resume(position: Int) {
+            pendingPlayPosition = position
+            pauseExcept(position)
+            activeWebViews[position]?.evaluateJavascript("if(window.baroEnsurePlaying) window.baroEnsurePlaying(0);", null)
+            verifyPlaybackStarted(position, 1)
+        }
+
         fun onPlayerReady(position: Int) {
-            if (position != viewPager.currentItem || pendingPlayPosition != position) {
+            if (!isForeground || position != viewPager.currentItem || pendingPlayPosition != position) {
                 logPlayerEvent(
                     "onPlayerReady ignored position=$position current=${viewPager.currentItem} " +
                         "pending=$pendingPlayPosition"
@@ -287,7 +335,7 @@ class PlayerActivity : AppCompatActivity() {
                 logPlayerEvent("load iframe html position=$position videoId=$videoId")
                 webView.loadDataWithBaseURL(
                     PLAYER_BASE_URL,
-                    buildPlayerHtml(videoId),
+                    buildPlayerHtml(videoId, if (englishOnly) englishStarts[videoId] ?: 0.0 else 0.0),
                     "text/html",
                     "UTF-8",
                     null
@@ -298,6 +346,9 @@ class PlayerActivity : AppCompatActivity() {
                 logPlayerEvent("holder stop position=$boundPosition videoId=$currentVideoId")
                 webView.stopLoading()
                 webView.loadUrl("about:blank")
+                currentVideoId = ""
+                isPlayerReady = false
+                boundPosition = RecyclerView.NO_POSITION
             }
 
             fun onVideoEnded() {
@@ -416,7 +467,8 @@ class PlayerActivity : AppCompatActivity() {
         return uri.getQueryParameter("v").orEmpty()
     }
 
-    private fun buildPlayerHtml(videoId: String): String {
+    private fun buildPlayerHtml(videoId: String, startSeconds: Double): String {
+        require(videoId.matches(Regex("[A-Za-z0-9_-]{11}")))
         return """
             <!doctype html>
             <html>
@@ -438,6 +490,7 @@ class PlayerActivity : AppCompatActivity() {
               <script src="https://www.youtube.com/iframe_api"></script>
               <script>
                 var player;
+                var startSeconds = $startSeconds;
                 var isReady = false;
                 var shouldPlayWhenReady = false;
 
@@ -454,7 +507,8 @@ class PlayerActivity : AppCompatActivity() {
                     height: '100%',
                     videoId: '$videoId',
                     playerVars: {
-                      autoplay: 1,
+                      autoplay: 0,
+                      start: Math.floor(startSeconds),
                       controls: 1,
                       enablejsapi: 1,
                       fs: 1,
@@ -500,15 +554,14 @@ class PlayerActivity : AppCompatActivity() {
                   }
                   player.unMute();
                   player.setVolume(100);
-                  player.seekTo(0, true);
+                  player.seekTo(startSeconds, true);
                   player.playVideo();
-                  log('baroPlayFromStart executed');
+                  log('baroPlayFromStart executed start=' + startSeconds);
                   window.baroPendingPlayFromStart = false;
                   shouldPlayWhenReady = false;
                 };
 
                 window.baroEnsurePlaying = function(attempt) {
-                  shouldPlayWhenReady = true;
                   if (!isReady || !player || !player.getPlayerState || !player.playVideo) {
                     log('baroEnsurePlaying deferred attempt=' + attempt + ' ready=' + isReady + ' hasPlayer=' + !!player);
                     return 'deferred';
@@ -522,12 +575,15 @@ class PlayerActivity : AppCompatActivity() {
                   }
                   player.unMute();
                   player.setVolume(100);
+                  if (window.baroPendingPlayFromStart) player.seekTo(startSeconds, true);
                   player.playVideo();
                   log('baroEnsurePlaying retried attempt=' + attempt + ' previousState=' + state);
                   return 'retried:' + state;
                 };
 
                 window.baroPause = function() {
+                  shouldPlayWhenReady = false;
+                  window.baroPendingPlayFromStart = false;
                   log('baroPause called ready=' + isReady + ' hasPlayer=' + !!player);
                   if (!isReady || !player || !player.pauseVideo) {
                     return;

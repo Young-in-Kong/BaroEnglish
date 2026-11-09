@@ -15,6 +15,12 @@ class SettingsActivity : AppCompatActivity() {
             finish()
         }
 
+        findViewById<androidx.appcompat.widget.SwitchCompat>(R.id.englishOnlySwitch).apply {
+            isChecked = PlaybackSettings.isEnglishOnly(this@SettingsActivity)
+            setOnCheckedChangeListener { _, checked ->
+                PlaybackSettings.setEnglishOnly(this@SettingsActivity, checked)
+            }
+        }
         val playbackModeGroup = findViewById<RadioGroup>(R.id.playbackModeGroup)
         playbackModeGroup.check(
             when (PlaybackSettings.getPlaybackMode(this)) {
