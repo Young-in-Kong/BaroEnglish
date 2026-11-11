@@ -20,5 +20,5 @@
     <string name="english_only_help">한국어 설명을 건너뛰고 영어 반복 구간부터 재생합니다. 설정을 바꾸면 현재 영상도 켤 때는 영어부터, 끌 때는 처음부터 다시 재생합니다. 반복 재생에도 적용됩니다. 시작 정보가 없는 영상은 처음부터 재생합니다.</string>
     <string name="english_start_loading">영어 시작 정보 확인 중…</string>
     <string name="english_start_missing">이 영상은 영어 시작 정보가 없어 처음부터 재생합니다.</string>
-    <string name="player_menu">메뉴</string>
+    <string name="player_back">뒤로</string>
 </resources>

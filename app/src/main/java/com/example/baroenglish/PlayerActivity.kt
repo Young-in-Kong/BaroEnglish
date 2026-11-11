@@ -16,7 +16,7 @@ import android.webkit.JavascriptInterface
 import android.webkit.WebResourceRequest
 import android.webkit.WebView
 import android.webkit.WebViewClient
-import android.widget.TextView
+import androidx.appcompat.widget.Toolbar
 import android.widget.Toast
 import androidx.appcompat.app.AppCompatActivity
 import androidx.recyclerview.widget.RecyclerView
@@ -34,7 +34,7 @@ class PlayerActivity : AppCompatActivity() {
     }
     private val missingNotices = mutableSetOf<String>()
     private var isForeground = false
-    private lateinit var titleView: TextView
+    private lateinit var toolbar: Toolbar
     private lateinit var viewPager: ViewPager2
     private lateinit var pagerAdapter: ShortsPagerAdapter
     private var lastAutoAdvancedPosition = RecyclerView.NO_POSITION
@@ -48,12 +48,16 @@ class PlayerActivity : AppCompatActivity() {
         englishOnly = PlaybackSettings.isEnglishOnly(this)
         val initialIndex = intent.getIntExtra(EXTRA_INDEX, 0).coerceIn(0, lessons.lastIndex)
 
-        titleView = findViewById(R.id.playerTitle)
+        toolbar = findViewById(R.id.playerToolbar)
         viewPager = findViewById(R.id.playerViewPager)
-        findViewById<View>(R.id.backButton).setOnClickListener { finish() }
+        toolbar.setNavigationOnClickListener { finish() }
 
-        findViewById<View>(R.id.playerSettingsButton).setOnClickListener {
-            startActivity(Intent(this, SettingsActivity::class.java))
+        toolbar.inflateMenu(R.menu.player_menu)
+        toolbar.setOnMenuItemClickListener { item ->
+            if (item.itemId == R.id.action_player_settings) {
+                startActivity(Intent(this, SettingsActivity::class.java))
+                true
+            } else false
         }
         englishStarts = EnglishStartRepository.cached(this)
         setupPlayer(initialIndex)
@@ -136,7 +140,7 @@ class PlayerActivity : AppCompatActivity() {
     }
 
     private fun updateTitle(position: Int) {
-        titleView.text = lessons.getOrNull(position)?.title.orEmpty()
+        toolbar.title = lessons.getOrNull(position)?.title.orEmpty()
     }
 
     private fun requestAudioFocus() {
