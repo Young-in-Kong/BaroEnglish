@@ -32,6 +32,11 @@
             android:textColor="@color/baro_text"
             android:textSize="18sp"
             android:textStyle="bold" />
+        <Button
+            android:id="@+id/playerSettingsButton"
+            android:layout_width="wrap_content"
+            android:layout_height="48dp"
+            android:text="@string/settings" />
     </LinearLayout>
 
     <androidx.viewpager2.widget.ViewPager2

@@ -210,7 +210,17 @@ class MainActivity : AppCompatActivity() {
         web.onPause()
         super.onPause()
     }
-    override fun onResume() { super.onResume(); if (::web.isInitialized && selectedTab == 0) web.onResume() }
+    override fun onResume() {
+        super.onResume()
+        findViewById<androidx.appcompat.widget.SwitchCompat>(R.id.englishOnlySwitch).isChecked = PlaybackSettings.isEnglishOnly(this)
+        findViewById<RadioGroup>(R.id.playbackModeGroup).check(when (PlaybackSettings.getPlaybackMode(this)) {
+            PlaybackMode.REPEAT_ONE -> R.id.repeatOneButton
+            PlaybackMode.REPEAT_ALL -> R.id.repeatAllButton
+            PlaybackMode.PLAY_ONCE -> R.id.playOnceButton
+        })
+        if (::web.isInitialized && selectedTab == 0) web.onResume()
+    }
+
     override fun onDestroy() { web.destroy(); super.onDestroy() }
 }
 

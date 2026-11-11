@@ -9,15 +9,16 @@ enum class PlaybackMode {
 }
 
 object PlaybackSettings {
-    private const val PREFS_NAME = "playback_settings"
+    const val PREFS_NAME = "playback_settings"
+    const val KEY_ENGLISH_ONLY = "english_only"
     private const val KEY_PLAYBACK_MODE = "playback_mode"
 
     fun isEnglishOnly(context: Context): Boolean =
-        context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE).getBoolean("english_only", false)
+        context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE).getBoolean(KEY_ENGLISH_ONLY, false)
 
     fun setEnglishOnly(context: Context, enabled: Boolean) {
         context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE).edit()
-            .putBoolean("english_only", enabled).apply()
+            .putBoolean(KEY_ENGLISH_ONLY, enabled).apply()
     }
 
     fun getPlaybackMode(context: Context): PlaybackMode {

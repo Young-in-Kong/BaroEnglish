@@ -1,6 +1,7 @@
 package com.example.baroenglish
 
 import android.content.ActivityNotFoundException
+import android.content.SharedPreferences
 import android.content.Context
 import android.content.Intent
 import android.media.AudioManager
@@ -25,6 +26,12 @@ class PlayerActivity : AppCompatActivity() {
     private val lessons = LessonRepository.lessons.toList()
     private var englishStarts: Map<String, Double> = emptyMap()
     private var englishOnly = false
+    private var settingsRevision = 0
+    private var restartOnResume = false
+    private val playbackPrefs by lazy { getSharedPreferences(PlaybackSettings.PREFS_NAME, Context.MODE_PRIVATE) }
+    private val settingsListener = SharedPreferences.OnSharedPreferenceChangeListener { _, key ->
+        if (key == PlaybackSettings.KEY_ENGLISH_ONLY) syncEnglishOnly()
+    }
     private val missingNotices = mutableSetOf<String>()
     private var isForeground = false
     private lateinit var titleView: TextView
@@ -45,15 +52,50 @@ class PlayerActivity : AppCompatActivity() {
         viewPager = findViewById(R.id.playerViewPager)
         findViewById<View>(R.id.backButton).setOnClickListener { finish() }
 
-        if (englishOnly) {
-            titleView.setText(R.string.english_start_loading)
-            EnglishStartRepository.refresh(this, LessonRepository.videoIds().toSet()) { starts ->
-                if (!isFinishing && !isDestroyed) {
-                    englishStarts = starts
-                    setupPlayer(initialIndex)
-                }
-            }
-        } else setupPlayer(initialIndex)
+        findViewById<View>(R.id.playerSettingsButton).setOnClickListener {
+            startActivity(Intent(this, SettingsActivity::class.java))
+        }
+        englishStarts = EnglishStartRepository.cached(this)
+        setupPlayer(initialIndex)
+        playbackPrefs.registerOnSharedPreferenceChangeListener(settingsListener)
+        if (englishOnly) refreshEnglishStarts()
+    }
+
+    private fun startFor(position: Int): Double {
+        val id = extractYoutubeVideoId(lessons[position].youtubeShortsUrl)
+        return if (englishOnly) englishStarts[id] ?: 0.0 else 0.0
+    }
+
+    private fun restartForSettings() {
+        if (!::pagerAdapter.isInitialized) return
+        if (isForeground) {
+            restartOnResume = false
+            lastAutoAdvancedPosition = RecyclerView.NO_POSITION
+            pagerAdapter.play(viewPager.currentItem)
+        } else restartOnResume = true
+    }
+
+    private fun syncEnglishOnly() {
+        val enabled = PlaybackSettings.isEnglishOnly(this)
+        if (enabled == englishOnly) return
+        englishOnly = enabled
+        settingsRevision++
+        missingNotices.clear()
+        if (enabled) englishStarts = EnglishStartRepository.cached(this)
+        restartForSettings()
+        if (enabled) refreshEnglishStarts()
+    }
+
+    private fun refreshEnglishStarts() {
+        val revision = settingsRevision
+        EnglishStartRepository.refresh(this, LessonRepository.videoIds().toSet()) { starts ->
+            if (isFinishing || isDestroyed || revision != settingsRevision || !englishOnly) return@refresh
+            val position = viewPager.currentItem
+            val before = startFor(position)
+            englishStarts = starts
+            // A newly available timing completes this explicit mode change.
+            if (before != startFor(position)) restartForSettings()
+        }
     }
 
     private fun setupPlayer(initialIndex: Int) {
@@ -74,7 +116,10 @@ class PlayerActivity : AppCompatActivity() {
     override fun onResume() {
         super.onResume()
         isForeground = true
-        if (::pagerAdapter.isInitialized) pagerAdapter.resume(viewPager.currentItem)
+        syncEnglishOnly()
+        if (::pagerAdapter.isInitialized) {
+            if (restartOnResume) restartForSettings() else pagerAdapter.resume(viewPager.currentItem)
+        }
     }
 
     override fun onPause() {
@@ -84,6 +129,8 @@ class PlayerActivity : AppCompatActivity() {
     }
 
     override fun onDestroy() {
+        playbackPrefs.unregisterOnSharedPreferenceChangeListener(settingsListener)
+        settingsRevision++
         if (::viewPager.isInitialized) viewPager.adapter = null
         super.onDestroy()
     }
@@ -103,7 +150,7 @@ class PlayerActivity : AppCompatActivity() {
     }
 
     private fun moveToNextFrom(position: Int) {
-        if (position != viewPager.currentItem || position == lastAutoAdvancedPosition) {
+        if (!isForeground || position != viewPager.currentItem || position == lastAutoAdvancedPosition) {
             logPlayerEvent(
                 "moveToNext ignored position=$position current=${viewPager.currentItem} " +
                     "lastAutoAdvanced=$lastAutoAdvancedPosition"
@@ -211,6 +258,7 @@ class PlayerActivity : AppCompatActivity() {
                       if (window.BaroEnglishBridge && window.BaroEnglishBridge.onLog) {
                         window.BaroEnglishBridge.onLog('android play injection received');
                       }
+                      startSeconds = ${startFor(position)};
                       window.baroPendingPlayFromStart = true;
                       if (window.baroPlayFromStart) {
                         window.baroPlayFromStart();
