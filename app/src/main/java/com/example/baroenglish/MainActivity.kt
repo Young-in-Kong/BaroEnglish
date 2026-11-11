@@ -73,6 +73,7 @@ class MainActivity : AppCompatActivity() {
                         val videoId = uri.getQueryParameter("videoId").orEmpty()
                         val status = if (uri.path == "/__playlist/remove") LessonRepository.removeLesson(this@MainActivity, videoId)
                             else LessonRepository.addLesson(this@MainActivity, uri.getQueryParameter("title").orEmpty(), videoId)
+                        if (status == "added" || status == "exists") EnglishStartRepository.refresh(this@MainActivity, setOf(videoId)) {}
                         if (status == "added" || status == "removed") findViewById<RecyclerView>(R.id.lessonRecyclerView).adapter?.notifyDataSetChanged()
                         val result = org.json.JSONObject().put("videoId", videoId).put("status", status)
                         web.evaluateJavascript("window.dispatchEvent(new CustomEvent('baro-playlist-result',{detail:$result}));", null)

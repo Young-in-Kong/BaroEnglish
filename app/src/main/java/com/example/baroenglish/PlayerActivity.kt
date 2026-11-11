@@ -47,7 +47,7 @@ class PlayerActivity : AppCompatActivity() {
 
         if (englishOnly) {
             titleView.setText(R.string.english_start_loading)
-            EnglishStartRepository.refresh(this) { starts ->
+            EnglishStartRepository.refresh(this, LessonRepository.videoIds().toSet()) { starts ->
                 if (!isFinishing && !isDestroyed) {
                     englishStarts = starts
                     setupPlayer(initialIndex)

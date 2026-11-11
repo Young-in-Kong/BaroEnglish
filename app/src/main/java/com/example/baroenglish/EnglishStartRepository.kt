@@ -12,6 +12,12 @@ object EnglishStartRepository {
     private const val PREFS = "english_start_catalog"
     private const val MAX_BYTES = 512 * 1024
     private val lock = Any()
+    private const val FRESH_MS = 15 * 60 * 1000L
+    private const val RETRY_MS = 60 * 1000L
+    internal fun needsRefresh(starts: Map<String, Double>, requiredIds: Set<String>, fetchedAt: Long, attemptedAt: Long, now: Long): Boolean {
+        if (attemptedAt > 0 && now >= attemptedAt && now - attemptedAt < RETRY_MS) return false
+        return fetchedAt <= 0 || now < fetchedAt || now - fetchedAt >= FRESH_MS || !starts.keys.containsAll(requiredIds)
+    }
 
     internal fun parse(text: String): Map<String, Double> {
         val root = JSONObject(text)
@@ -35,11 +41,16 @@ object EnglishStartRepository {
         parse(context.getSharedPreferences(PREFS, Context.MODE_PRIVATE).getString("json", "")!!)
     }.getOrDefault(emptyMap())
 
-    fun refresh(context: Context, done: (Map<String, Double>) -> Unit) {
+    fun refresh(context: Context, requiredIds: Set<String> = emptySet(), done: (Map<String, Double>) -> Unit) {
         val app = context.applicationContext
         val url = app.getString(R.string.home_url).trimEnd('/') + "/english-starts.json"
         Thread {
             val result = synchronized(lock) {
+                val prefs = app.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
+                val old = cached(app)
+                val now = System.currentTimeMillis()
+                if (!needsRefresh(old, requiredIds, prefs.getLong("fetched_at", 0), prefs.getLong("attempted_at", 0), now)) old else {
+                prefs.edit().putLong("attempted_at", now).commit()
                 runCatching {
                     val c = URL(url).openConnection() as HttpURLConnection
                     c.connectTimeout = 4000
@@ -61,10 +72,11 @@ object EnglishStartRepository {
                         }
                         val text = bytes.toString(Charsets.UTF_8)
                         val parsed = parse(text)
-                        app.getSharedPreferences(PREFS, Context.MODE_PRIVATE).edit().putString("json", text).commit()
+                        app.getSharedPreferences(PREFS, Context.MODE_PRIVATE).edit().putString("json", text).putLong("fetched_at", System.currentTimeMillis()).commit()
                         parsed
                     } finally { c.disconnect() }
-                }.getOrElse { cached(app) }
+                }.getOrElse { old }
+                }
             }
             Handler(Looper.getMainLooper()).post { done(result) }
         }.start()

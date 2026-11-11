@@ -28,4 +28,14 @@ class EnglishStartRepositoryTest {
     @Test fun emptyCatalogCanRevokeAllTimings() {
         assertTrue(EnglishStartRepository.parse("""{"schemaVersion":1,"videos":{}}""").isEmpty())
     }
+    @Test fun refreshPolicyUsesFreshCacheAndRechecksMissingOrStale() {
+        val now=2_000_000L
+        val starts=mapOf("4NtiP8Kn9qE" to 3.984)
+        assertFalse(EnglishStartRepository.needsRefresh(starts, starts.keys, now-10_000, now-10_000, now))
+        assertTrue(EnglishStartRepository.needsRefresh(starts, starts.keys, now-900_000, now-900_000, now))
+        assertTrue(EnglishStartRepository.needsRefresh(starts, setOf("Ff4yvwRKG_E"), now-70_000, now-70_000, now))
+        assertFalse(EnglishStartRepository.needsRefresh(starts, setOf("Ff4yvwRKG_E"), now-70_000, now-1_000, now))
+        assertTrue(EnglishStartRepository.needsRefresh(emptyMap(), emptySet(), 0, 0, now))
+        assertTrue(EnglishStartRepository.needsRefresh(starts, starts.keys, now+1, now+1, now))
+    }
 }
